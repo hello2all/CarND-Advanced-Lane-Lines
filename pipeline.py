@@ -250,8 +250,8 @@ def overlay_lane_detection(image, binary_warped, Minv, left_fit, right_fit):
 
 def overlay_curvature(overlay, left_curverad, right_curverad):
     font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(overlay, "left lane radius: {0:.5g} m".format(left_curverad), (50,50), font, 1, (255,255,255),2,cv2.LINE_AA)
-    cv2.putText(overlay, "right lane radius: {0:.5g} m".format(right_curverad), (50,100), font, 1, (255,255,255),2,cv2.LINE_AA)
+    cv2.putText(overlay, "left line radius: {0:.5g} m".format(left_curverad), (50,50), font, 1, (255,255,255),2,cv2.LINE_AA)
+    cv2.putText(overlay, "right line radius: {0:.5g} m".format(right_curverad), (50,100), font, 1, (255,255,255),2,cv2.LINE_AA)
     return overlay
 
 def warped_lane_binary(undist, src, dst):
