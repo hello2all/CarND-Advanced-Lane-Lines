@@ -1,8 +1,4 @@
-## Writeup Template
-
----
-
-**Advanced Lane Finding Project**
+# Advanced Lane Finding Project
 
 The goals / steps of this project are the following:
 
