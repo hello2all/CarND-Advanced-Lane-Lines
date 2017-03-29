@@ -4,8 +4,7 @@ import cv2
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
-
-from lines import Line
+from collections import deque
 
 def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
     # Calculate directional gradient
@@ -294,8 +293,12 @@ class Pipe_line():
         print("Setting perspective")
         self.src, self.dst = set_perspective(img_size=img_size)
         print("Pipe line ready")
-        self.left_fit = None
-        self.right_fit = None
+        # Init line objects
+        self.left_line = Line()
+        self.right_line = Line()
+
+        self.left_line.current_fit = None
+        self.right_line.current_fit = None
 
     def process(self, image):
         # undistort image
@@ -303,19 +306,37 @@ class Pipe_line():
         # get warped detected lanes
         binary_warped, M, Minv = warped_lane_binary(undist, self.src, self.dst)
         # extract lane pixels
-        if (self.left_fit is None) | (self.right_fit is None):
+        if (self.left_line.current_fit is None) | (self.right_line.current_fit is None):
             # uninformed search
             leftx, lefty, rightx, righty = extract_pixels_uninformed(binary_warped)
         else:
             # informed search (based on margin)
-            leftx, lefty, rightx, righty = extract_pixels_informed(binary_warped, self.left_fit, self.right_fit)
-        
+            leftx, lefty, rightx, righty = extract_pixels_informed(binary_warped, self.left_line.current_fit, self.right_line.current_fit)
         # calculate polyfit coefficients
-        self.left_fit, self.right_fit = polyfit_pixels(leftx, lefty, rightx, righty)
+        left_fit, right_fit = polyfit_pixels(leftx, lefty, rightx, righty)
+        self.left_line.update_queue(left_fit)
+        self.right_line.update_queue(right_fit)
+        
         # calculate curvature
         left_curverad, right_curverad = calc_radius(binary_warped, leftx, lefty, rightx, righty)
         # overlay detected lane
-        overlay = overlay_lane_detection(undist, binary_warped, Minv, self.left_fit, self.right_fit)
+        overlay = overlay_lane_detection(undist, binary_warped, Minv, self.left_line.best_fit, self.right_line.best_fit)
         # overlay curvature text
         overlay = overlay_curvature(overlay, left_curverad, right_curverad)
         return overlay
+
+class Line():
+    def __init__(self):
+        #polynomial coefficients averaged over the last n iterations
+        self.best_fit = None
+        #polynomial coefficients for the most recent fit
+        self.current_fit = [np.array([False])]
+        #polynomial coefficients queue
+        self.fit_queue = deque([])
+    # Update FIFO queue of recent values
+    def update_queue(self, value, n=5):
+        self.current_fit = value
+        self.fit_queue.append(value)
+        if len(self.fit_queue) > n:
+            self.fit_queue.popleft()
+        self.best_fit = np.average(self.fit_queue, axis=0)
