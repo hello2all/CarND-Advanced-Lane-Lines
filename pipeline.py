@@ -121,21 +121,23 @@ def gradient_pipe_line(image):
             ((img_g_mag == 1) & (img_d_mag == 1))] = 1
     return sobel_combined
 
-def calc_radius(binary_warped, leftx, lefty, rightx, righty):
+def calc_radius_pos(binary_warped, leftx, lefty, rightx, righty):
     y_eval = np.max(binary_warped.shape[0] - 1)
     # Define conversions in x and y from pixels space to meters
     ym_per_pix = 30/720 # meters per pixel in y dimension
-    xm_per_pix = 3.7/700 # meters per pixel in x dimension
+    xm_per_pix = 3.7/920 # meters per pixel in x dimension
 
     # Fit new polynomials to x,y in world space
     left_fit_cr = np.polyfit(lefty*ym_per_pix, leftx*xm_per_pix, 2)
     right_fit_cr = np.polyfit(righty*ym_per_pix, rightx*xm_per_pix, 2)
-    # Calculate the new radii of curvature
+    # Calculate the new radius of curvature in meters
     left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
     right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
-    # Now our radius of curvature is in meters
+    
+    # calculate vehicle position
+    position = (right_fit_cr[2] - left_fit_cr[2])/2 + left_fit_cr[2] - binary_warped.shape[1]/2 * xm_per_pix
 
-    return left_curverad, right_curverad
+    return left_curverad, right_curverad, position
 
 def extract_pixels_uninformed(binary_warped):
     # Take a histogram of the bottom half of the image
@@ -248,10 +250,18 @@ def overlay_lane_detection(image, binary_warped, Minv, left_fit, right_fit):
     overlay = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
     return overlay
 
-def overlay_curvature(overlay, left_curverad, right_curverad):
+def overlay_curvature_pos(overlay, left_curverad, right_curverad, position):
     font = cv2.FONT_HERSHEY_SIMPLEX
     cv2.putText(overlay, "left line radius: {0:.5g} m".format(left_curverad), (50,50), font, 1, (255,255,255),2,cv2.LINE_AA)
     cv2.putText(overlay, "right line radius: {0:.5g} m".format(right_curverad), (50,100), font, 1, (255,255,255),2,cv2.LINE_AA)
+
+    if position > 0:
+        rel_dir = "left"
+    else:
+        rel_dir = "right"
+
+    cv2.putText(overlay, "Vehicle is {0:.2g}m {1} of center".format(np.absolute(position), rel_dir), (50,150), font, 1, (255,255,255),2,cv2.LINE_AA)
+
     return overlay
 
 def warped_lane_binary(undist, src, dst):
@@ -316,13 +326,15 @@ class Pipe_line():
         left_fit, right_fit = polyfit_pixels(leftx, lefty, rightx, righty)
         self.left_line.update_queue(left_fit)
         self.right_line.update_queue(right_fit)
+
+        #calculate 
         
         # calculate curvature
-        left_curverad, right_curverad = calc_radius(binary_warped, leftx, lefty, rightx, righty)
+        left_curverad, right_curverad, position = calc_radius_pos(binary_warped, leftx, lefty, rightx, righty)
         # overlay detected lane
         overlay = overlay_lane_detection(undist, binary_warped, Minv, self.left_line.best_fit, self.right_line.best_fit)
-        # overlay curvature text
-        overlay = overlay_curvature(overlay, left_curverad, right_curverad)
+        # overlay curvature and position text
+        overlay = overlay_curvature_pos(overlay, left_curverad, right_curverad, position)
         return overlay
 
 class Line():
